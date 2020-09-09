@@ -1,0 +1,632 @@
+#!/usr/bin/env python3
+#pyblinkgtk 0.2
+#tezeta 2020
+
+import threading, subprocess, os, time, psutil, configparser, argparse
+#import base64
+from os.path import expanduser
+
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk,GLib,Gio,Gdk,GdkPixbuf
+
+class pyblinkgtk(Gtk.Window):
+    from blinkstick import blinkstick
+    def __init__(self, args):
+        Gtk.Window.__init__(self, title='pyblinkgtk')
+        self.connect("delete-event", self.windowClosed)
+      
+        self.set_resizable(False)
+        self.set_border_width(6)
+
+        self.debugEnable = args.debug
+        self.getConfig()
+
+#        self.icon_stream = Gio.MemoryInputStream.new_from_bytes(GLib.Bytes(self.icon_data))
+#        self.icon = GdkPixbuf.Pixbuf.new_from_stream(self.icon_stream)
+#        self.tray.set_from_pixbuf(self.icon)
+        icon = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'blinkstick.ico')
+   
+        self.set_icon_from_file(icon)
+
+        #tray icon
+        self.tray = Gtk.StatusIcon()
+
+        self.tray.set_from_file(icon)
+        self.tray.set_has_tooltip(True)
+        self.tray.set_tooltip_text('pyblinkgtk')
+        self.tray.connect('activate', self.showhide)
+
+
+        #create main box
+        self.viewport = Gtk.Box(spacing=20, hexpand=True, vexpand=True)
+        self.viewport.set_border_width(6)
+
+        #self.viewportFrame = Gtk.Frame()
+        #self.viewportFrame.add(self.viewport)
+
+        #self.add(self.viewportFrame)
+        self.add(self.viewport)
+
+
+
+        #create left view
+        self.leftView = Gtk.Box(spacing=6, border_width=0, hexpand=False, vexpand=True, orientation='vertical')
+        self.leftViewFrame = Gtk.Frame()
+        self.leftViewFrame.add(self.leftView)
+        self.viewport.pack_start(self.leftViewFrame,True,True,0)
+
+
+        #create blinkstick list+controls
+        self.blinkstickPane = Gtk.Box(spacing=6, border_width=8, hexpand=True, vexpand=False)
+        self.leftView.pack_start(self.blinkstickPane,False,False,0)
+
+        self.blinkstickList = Gtk.ComboBox.new_with_model_and_entry(self.initSticks())
+        self.blinkstickList.set_entry_text_column(1)
+        self.blinkstickList.set_active(0)
+        self.blinkstickPane.pack_start(self.blinkstickList,True,True, 0)
+
+        #refresh button
+        self.refreshButton = Gtk.Button(label='Refresh')
+        self.blinkstickPane.pack_start(self.refreshButton,False,False,0)
+        self.refreshButton.connect('pressed',self.refreshButtonPressed)
+
+        #black(off) button
+        self.offButton = Gtk.Button(label='Off')
+        self.offButton.connect('pressed',self.offButtonPressed)
+        self.blinkstickPane.pack_start(self.offButton,False,False,0)
+
+
+        #create mode pane under list       
+        self.funcModePane = Gtk.Box(spacing=6, hexpand=True, vexpand=False)
+        self.leftView.pack_end(self.funcModePane,True,True,0)
+
+
+        #create left functions pane
+        self.funcLeftPane = Gtk.Box(spacing=6, border_width=8, orientation='vertical')
+        self.funcModePane.pack_start(self.funcLeftPane,True,True,0)
+        
+        self.progControl = Gtk.Box(spacing=6, border_width=8, hexpand=True)
+        self.funcLeftPane.pack_start(self.progControl,True,True,0)
+
+        #hide button
+        self.hideButton = Gtk.Button(label='Hide')
+        self.progControl.pack_start(self.hideButton,True,True,0)
+        self.hideButton.connect('pressed',self.showhide)
+
+        #exit button
+        self.exitButton = Gtk.Button(label='Exit')
+        self.progControl.pack_start(self.exitButton,True,True,0)
+        self.exitButton.connect('pressed',self.exit)
+
+   
+        #boblight ctl
+        self.boblightPane = Gtk.Box(spacing=6, border_width=8, vexpand=True, hexpand=True, orientation='vertical')
+        self.boblightFrame = Gtk.Frame()
+        self.boblightFrame.add(self.boblightPane)
+
+        self.boblightInfoLabel = Gtk.Label(label='boblight control')
+        self.funcLeftPane.pack_start(self.boblightInfoLabel,False,False,0)
+
+        self.funcLeftPane.pack_start(self.boblightFrame,False,False,0)
+
+        self.boblightdConfigLabel = Gtk.Label(label='boblightd config:')
+        self.boblightPane.pack_start(self.boblightdConfigLabel,False,False,0) 
+
+        self.boblightdConfig = Gtk.Entry()
+        self.boblightdConfig.set_text(self.cfg.get('boblight','boblightd-conf'))
+        self.boblightdConfig.connect('changed',self.setConfig,'boblight','boblightd-conf')
+        self.boblightPane.pack_start(self.boblightdConfig,False,False,0) 
+
+        self.boblightX11ArgsLabel = Gtk.Label(label='boblight-X11 args:')
+        self.boblightPane.pack_start(self.boblightX11ArgsLabel,False,False,0) 
+
+        self.boblightX11Args = Gtk.Entry()
+        self.boblightX11Args.set_text(self.cfg.get('boblight','boblight-x11-args'))
+        self.boblightX11Args.connect('changed',self.setConfig,'boblight','boblight-x11-args')
+        self.boblightPane.pack_start(self.boblightX11Args,False,False,0) 
+
+        self.boblightPauseButton = Gtk.Button()
+        self.boblightToggleButton = Gtk.ToggleButton()
+
+        self.boblightPauseButton.connect('pressed',self.boblightTogglePause,self.boblightToggleButton)
+        self.boblightPane.pack_end(self.boblightPauseButton,False,False,0)       
+
+        self.boblightToggleButton.connect('toggled',self.boblightToggleExec,self.boblightPauseButton)
+        self.boblightPane.pack_end(self.boblightToggleButton,False,False,0)
+
+        
+        #create mode options pane
+        self.funcRightPane = Gtk.Box(spacing=6, border_width=8,hexpand=True,vexpand=True, orientation='vertical')
+        self.funcModePane.pack_end(self.funcRightPane,False,False,0)
+
+        self.funcModeSelectionPane = Gtk.ButtonBox(orientation='vertical')
+        self.funcModeSelectionPane.set_layout(Gtk.ButtonBoxStyle(3))
+        self.funcRightPane.pack_start(self.funcModeSelectionPane,True,True,0)
+       
+        self.blink = Gtk.RadioButton(label='Blink')
+        self.pulse = Gtk.RadioButton(group=self.blink,label='Pulse')
+        self.morph = Gtk.RadioButton(group=self.blink,label='Morph')
+
+        self.funcModeSelectionPane.add(self.blink)
+        self.funcModeSelectionPane.add(self.pulse)
+        self.funcModeSelectionPane.add(self.morph)
+
+        #duration
+        self.durationPane = Gtk.Box()
+        self.funcRightPane.pack_start(self.durationPane,False,False,0)
+
+        self.durationLabel = Gtk.Label(label='Length: ')
+        self.duration = Gtk.SpinButton()
+        durationAdj = Gtk.Adjustment(500,1,60000,1,5)
+        self.duration.set_adjustment(durationAdj)
+
+        self.durationPane.pack_start(self.durationLabel,False,False,0)
+        self.durationPane.pack_end(self.duration,False,False,0)
+
+
+        #delay
+        self.delayPane = Gtk.Box()
+        self.funcRightPane.pack_start(self.delayPane,False,False,0)
+
+        self.delayLabel = Gtk.Label(label='Delay: ')
+        self.delay = Gtk.SpinButton()
+        delayAdj = Gtk.Adjustment(500,1,60000,1,5)
+        self.delay.set_adjustment(delayAdj)
+
+        self.delayPane.pack_start(self.delayLabel,False,False,0)
+        self.delayPane.pack_end(self.delay,False,False,0)
+
+
+        #repeats
+        self.repeatsPane = Gtk.Box()
+        self.funcRightPane.pack_start(self.repeatsPane,False,False,0)
+
+        self.repeatsLabel = Gtk.Label(label='Repeats: ')
+        self.repeats = Gtk.SpinButton()
+        repeatsAdj = Gtk.Adjustment(5,1,1000,1,5)
+        self.repeats.set_adjustment(repeatsAdj)
+
+        self.repeatsPane.pack_start(self.repeatsLabel,False,False,0)
+        self.repeatsPane.pack_end(self.repeats,False,False,0)
+
+
+        #steps
+        self.stepsPane = Gtk.Box()
+        self.funcRightPane.pack_start(self.stepsPane,False,False,0)
+
+        self.stepsLabel = Gtk.Label(label='Steps: ')
+        self.steps = Gtk.SpinButton()
+        stepsAdj = Gtk.Adjustment(500,1,9999,1,5)
+        self.steps.set_adjustment(stepsAdj)
+
+        self.stepsPane.pack_start(self.stepsLabel,False,False,0)
+        self.stepsPane.pack_end(self.steps,False,False,0)
+
+
+        #newColor
+        self.newColorPane = Gtk.Box()
+        self.funcRightPane.pack_start(self.newColorPane,False,False,0)
+
+        self.newColorLabel = Gtk.Label(label='New color: ')
+        self.newColor = Gtk.ColorButton(color = Gdk.Color.parse('#ffffff').color)
+
+        self.newColorPane.pack_start(self.newColorLabel,True,True,0)
+        self.newColorPane.pack_end(self.newColor,False,False,0)
+
+        #exec button      
+        self.execButton = Gtk.Button(label='Execute')
+        self.execButton.connect('pressed',self.executeButtonPressed)
+        self.funcRightPane.pack_end(self.execButton,False,False,0)
+
+        #rand color
+        self.randColorButton = Gtk.Button(label='Random')
+        self.randColorButton.connect('pressed',self.randColorButtonPressed)
+        self.funcRightPane.pack_end(self.randColorButton,False,False,0)
+
+
+
+        #right side with info and colorwheel
+        self.rightView = Gtk.Box(spacing=12,orientation='vertical')
+
+
+        #create topright box
+        self.topRightView = Gtk.Box(spacing=6, border_width=8, hexpand=True, vexpand=False, orientation='vertical')
+        self.topRightViewFrame = Gtk.Frame()
+        self.topRightViewFrame.add(self.topRightView)
+        
+        self.rightView.pack_start(self.topRightViewFrame,False,False,0)
+
+
+        #modepane
+        self.funcModePane = Gtk.Box(spacing=6, hexpand=False, vexpand=True)
+        self.modeLabel = Gtk.Label(label='Mode: ')
+
+        self.modes = Gtk.ListStore(str)
+        self.modes.append(['0 - default'])
+        self.modes.append(['1 - inverse'])
+        self.modes.append(['2 - ws2812'])
+        self.modes.append(['3 - ws2812 mirror'])
+
+        self.mode = Gtk.ComboBox.new_with_model_and_entry(self.modes)
+        self.mode.set_entry_text_column(0)
+
+        self.mode.set_active(self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).get_mode())
+        self.mode.connect('changed',self.setMode)
+
+        self.funcModePane.pack_start(self.modeLabel,False,False,0)
+        self.funcModePane.pack_end(self.mode,False,False,0)
+
+
+        #create infopane1
+        self.infoPane1 = Gtk.Box(spacing=6, hexpand=True, vexpand=True)
+        self.infoSaveButton1 = Gtk.Button(label='Infoblock 1')
+        self.infoSaveButton1.connect('pressed',self.setInfo1)
+
+        self.info1 = Gtk.Entry()
+        self.info1.set_max_length(32)
+        self.info1.set_text(self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).get_info_block1())
+        
+        self.infoPane1.pack_start(self.infoSaveButton1,False,False,0)
+        self.infoPane1.pack_end(self.info1,False,False,0)
+
+
+        #create infopane2
+        self.infoPane2 = Gtk.Box(spacing=6, hexpand=True, vexpand=True)
+        self.infoSaveButton2 = Gtk.Button(label='Infoblock 2')
+        self.infoSaveButton2.connect('pressed',self.setInfo2)
+
+        self.info2 = Gtk.Entry()
+        self.info2.set_max_length(32)
+        self.info2.set_text(self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).get_info_block2())
+        
+        self.infoPane2.pack_start(self.infoSaveButton2,False,False,0)
+        self.infoPane2.pack_end(self.info2,False,False,0)
+
+
+        #add panes to tr box
+        self.topRightView.pack_start(self.funcModePane,False,False,0)
+        self.topRightView.pack_end(self.infoPane2,False,False,0)
+        self.topRightView.pack_end(self.infoPane1,False,False,0)
+
+        #color wheel
+        self.colorSelector = Gtk.ColorSelection()
+        
+        self.updateColor(self.colorSelector)
+        
+        self.colorSelector.connect('color-changed',self.setColor)
+        self.rightView.pack_end(self.colorSelector, True, True, 0)
+
+        self.viewport.pack_end(self.rightView, True, True, 0)
+        
+        
+        #connect modes
+        self.blink.connect('toggled',self.blinkSelected)
+        self.pulse.connect('toggled',self.pulseSelected)
+        self.morph.connect('toggled',self.morphSelected)
+        
+        #init boblight status
+        self.boblightTogglePause(self.boblightPauseButton, self.boblightToggleButton)
+        self.boblightToggleExec(self.boblightToggleButton,self.boblightPauseButton)
+ 
+
+    #selection/control functions
+    def controlState(self,state):
+        self.randColorButton.set_sensitive(state)
+        self.execButton.set_sensitive(state)
+        self.colorSelector.set_sensitive(state)
+
+    def blinkSelected(self, obj):
+        self.durationPane.hide()
+        self.delayPane.show()
+        self.repeatsPane.show()
+        self.stepsPane.hide()
+        self.newColorPane.hide() 
+ 
+    def pulseSelected(self,obj):
+        self.durationPane.show()
+        self.delayPane.hide()
+        self.repeatsPane.show()
+        self.stepsPane.show()
+        self.newColorPane.hide()
+ 
+    def morphSelected(self,obj):
+        self.durationPane.show()
+        self.delayPane.hide()
+        self.repeatsPane.hide()
+        self.stepsPane.show()
+        self.newColorPane.show()
+    
+    def randColorButtonPressed(self,obj):
+        self.randColor()
+        self.updateColor(self.colorSelector)
+
+    def executeButtonPressed(self, obj):
+        color = self.rgbToHex(self.colorSelector.get_current_color().red_float,self.colorSelector.get_current_color().green_float,self.colorSelector.get_current_color().blue_float)
+        
+        if self.blink.get_active():
+                t = self.debug(threading.Thread(name = 'execBlink', target = self.execBlink, args = (color,self.repeats.get_value(),self.delay.get_value())))
+                t.start()
+        elif self.pulse.get_active():
+                t = self.debug(threading.Thread(name = 'execPulse', target = self.execPulse, args = (color,self.repeats.get_value(),self.duration.get_value(),self.steps.get_value())))
+                t.start()
+        elif self.morph.get_active():
+                new_color = self.rgbToHex(self.newColor.get_color().red_float,self.newColor.get_color().green_float,self.newColor.get_color().blue_float)
+                t = self.debug(threading.Thread(name = 'execMorph', target = self.execMorph, args = (new_color,self.duration.get_value(),self.steps.get_value())))
+                t.start()
+        self.updateColor(self.colorSelector)
+
+    def refreshButtonPressed(self,obj):
+        self.blinkstickList.set_model(self.initSticks())
+        self.updateColor(self.colorSelector)
+
+    def offButtonPressed(self, obj):
+        self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).set_color(hex='#000000')       
+        self.updateColor(self.colorSelector)
+        return 0
+
+
+    #visibility
+    def windowClosed(self,obj,event):
+        self.showhide(obj)
+        return True
+
+    def showhide(self,obj):
+        if(self.get_property('visible')):
+             self.hide()
+        else:
+             self.show()
+
+    def errorOut(self,message):
+        dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.ERROR, Gtk.ButtonsType.OK, 'An error occured!')
+        dialog.format_secondary_text('No blinksticks were found, exiting....')
+        dialog.run()
+        exit(1)
+
+    def exit(self, obj):
+        try:
+                self.cfg.write(self.debug(open(self.home + '/.pyblinkgtk.conf','w')))
+                self.debug('wrote config')
+        except:
+                self.debug('failed writing config')
+
+        self.debug(Gtk.main_quit())
+
+
+
+    #blinkstick interface
+    def initSticks(self):
+        self.blinksticks = Gtk.ListStore(int,str) 
+        blinksticks = self.blinkstick.find_all()
+        if not blinksticks:
+            self.errorOut("No blinksticks found!")
+        for index, blinkstick in enumerate(blinksticks):
+            self.blinksticks.append(self.debug([index, blinkstick.get_serial()]))
+        return self.blinksticks
+
+    def setMode(self, obj):
+        try:
+            return self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).set_mode(obj.get_active())
+        except:
+            self.errorOut("No blinksticks found!")
+
+    def setInfo1(self, obj):
+        try:
+            self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).set_info_block1(self.info1.get_text())
+        except:
+            self.errorOut("No blinksticks found!")
+        obj.set_label('Infoblock 1 [Saved]')
+        return 0
+
+    def setInfo2(self, obj):
+        try:
+            self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).set_info_block2(self.info2.get_text())
+        except:
+            self.errorOut("No blinksticks found!")
+        obj.set_label('Infoblock 2 [Saved]')
+        return 0
+
+    def setColor(self, obj):
+        try:
+            return self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).set_color(hex=self.rgbToHex(obj.get_current_color().red_float,obj.get_current_color().green_float,obj.get_current_color().blue_float))
+        except:
+            self.errorOut("No blinksticks found!")      
+
+    def updateColor(self, obj):
+        try:
+            currentColor = Gdk.Color.parse(self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).get_color(color_format='hex')).color
+        except:
+            self.errorOut("No blinksticks found!")
+        return obj.set_current_color(currentColor)
+
+    def randColor(self):
+        try:
+            self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).set_random_color()
+        except:
+            self.errorOut("No blinksticks found!")
+
+    def execBlink(self,c,r,d):
+        try:
+            return self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).blink(hex=c,repeats=int(r),delay=int(d))   
+        except:
+            self.errorOut("No blinksticks found!")
+
+    def execPulse(self,c,r,d,s):
+        try:
+            return self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).pulse(hex=c,repeats=int(r),duration=int(d),steps=int(s)) 
+        except:
+            self.errorOut("No blinksticks found!")
+
+    def execMorph(self,nc,d,s):
+        try:
+            return self.blinkstick.find_by_serial(self.blinksticks[self.blinkstickList.get_active()][1]).morph(hex=nc,duration=int(d),steps=int(s))
+        except:
+            self.errorOut("No blinksticks found!")
+
+
+    #boblight controls
+    def checkRunning(self,proc):
+        try:
+            p = psutil.Process([p.info for p in psutil.process_iter(attrs=['pid','name','status']) if (proc in p.info['name']) and (p.info['status'] != 'zombie')][0]['pid'])
+        except IndexError:
+            return -1
+        return self.debug(p)
+
+    def colorUpdater(self, obj):
+         while self.update:
+             time.sleep(0.5)
+             self.updateColor(obj)
+
+    def boblightControlState(self,firstrun,state,toggle,pause):
+        if firstrun:
+                if state:
+                        toggle.set_label('running')
+                        toggle.set_active(True)
+                        self.controlState(False)
+                        pause.set_sensitive(True)
+                        pause.set_label('running')
+                else:
+                        toggle.set_label('not running')
+                        toggle.set_active(False)
+                        self.controlState(True)
+                        pause.set_sensitive(False)
+                        pause.set_label('not running')
+        else:
+                if state:
+                        toggle.set_label('started')
+                        pause.set_sensitive(True)
+                        self.controlState(False)
+                        pause.set_label('running')
+                else:
+                        toggle.set_label('stopped')
+                        pause.set_sensitive(False)
+                        self.controlState(True)
+                        pause.set_label('not running')
+
+    def boblightToggleExec(self,obj,subobj):
+        if obj.get_label():
+            p = self.checkRunning('boblightd')
+            x = self.checkRunning('boblight-X11')
+             
+            if obj.get_active() and os.path.exists(self.cfg.get('boblight','boblightd-conf')):
+                if p == -1:
+                    self.boblightd = self.debug(psutil.Popen('boblightd -c ' + self.cfg.get('boblight','boblightd-conf'), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+                    self.boblightControlState(False, True, obj, subobj)
+
+                    self.update = True
+                    self.updater = self.debug(threading.Thread(name='colorUpdater', target=self.colorUpdater, args=(self.colorSelector,)))
+                    self.updater.daemon = True
+                    self.updater.start()
+
+                if x == -1:
+                    self.boblightX11 = self.debug(psutil.Popen('DISPLAY=:0 boblight-X11 ' + self.cfg.get('boblight','boblight-X11-args'), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
+            elif os.path.exists(self.cfg.get('boblight','boblightd-conf')):
+                self.boblightd.kill()
+                self.boblightX11.kill()
+                self.boblightControlState(False, False, obj, subobj)
+                self.update = False  
+            else:
+                obj.set_active(False)
+                subobj.set_sensitive(False)
+                obj.set_label("boblightd conf missing")
+                return -1
+
+        else:
+                p = self.checkRunning('boblightd')
+                x = self.checkRunning('boblight-X11')
+                if p == -1:
+                        if not os.path.exists(self.cfg.get('boblight','boblightd-conf')):
+                            obj.set_active(False)
+                            subobj.set_sensitive(False)
+                            obj.set_label("boblightd conf missing")
+                            return -1
+ 
+                        self.boblightControlState(True, False, obj, subobj)
+                elif (p.status() == psutil.STATUS_RUNNING) or (p.status() == psutil.STATUS_SLEEPING):
+                        self.boblightd = p
+                        self.boblightControlState(True, True, obj, subobj)
+
+                        self.update = True
+                        self.updater = self.debug(threading.Thread(name='colorUpdater', target=self.colorUpdater, args=(self.colorSelector,)))
+                        self.updater.daemon = True
+                        self.updater.start()
+
+                if x != -1:
+                        if (x.status() == psutil.STATUS_RUNNING) or (x.status() == psutil.STATUS_SLEEPING):
+                                self.boblightX11 = x
+
+        return 0
+        
+    def boblightTogglePause(self,obj,subobj):
+      if subobj.get_active == False:
+        return -1
+      p = self.checkRunning('boblightd')
+      if p == -1:
+        obj.set_label('not running')
+        return -1
+      if p.status() == psutil.STATUS_STOPPED:
+        if obj.get_label():
+            p.resume()       
+            obj.set_label('started')
+        else:
+            obj.set_label('stopped')
+      elif (p.status() == psutil.STATUS_RUNNING) or (p.status() == psutil.STATUS_SLEEPING):
+        if obj.get_label():
+            p.suspend()
+            obj.set_label('stopped')
+        else:
+            obj.set_label('running')
+
+
+    #helper functions
+    def rgbToHex(self, r, g, b):
+        r = int(round(r * 255.0))
+        g = int(round(g * 255.0))
+        b = int(round(b * 255.0))
+        return self.debug('#{:02x}{:02x}{:02x}'.format(r, g, b))
+
+    def getConfig(self):
+        self.home = expanduser('~')
+        self.cfg = configparser.ConfigParser()
+
+        if not os.path.exists(self.home + '/.pyblinkgtk.conf'):
+                self.cfg.add_section('boblight')
+                self.cfg.set('boblight','boblightd-conf', self.home + '/.boblight/boblight.conf')
+                self.cfg.set('boblight','boblight-X11-args','-o saturation=3 -o value=8.0 -o threshold=70 -o speed=70 -o valuemax=1')
+                self.cfg.write(self.debug(open(self.home + '/.pyblinkgtk.conf','w')))
+        else:
+                self.debug(self.cfg.read(self.home + '/.pyblinkgtk.conf'))
+                try:
+                        self.debug(self.cfg.items('boblight'))
+                        self.cfg.get('boblight','boblightd-conf')
+                        self.cfg.get('boblight','boblight-x11-args')
+                except configparser.NoOptionError:
+                        self.cfg.add_section('boblight')
+                        self.cfg.set('boblight','boblightd-conf', self.home + '/.boblight/boblight.conf')
+                        self.cfg.set('boblight','boblight-X11-args','-o saturation=3 -o value=8.0 -o threshold=70 -o speed=70 -o valuemax=1')
+                        self.debug(self.cfg.items('boblight'))
+                self.cfg.write(self.debug(open(self.home + '/.pyblinkgtk.conf','w')))
+
+    def setConfig(self,obj,category,item):
+        self.cfg.set(category,item,self.debug(obj.get_text()))
+
+    def debug(self,msg):
+        if self.debugEnable:
+                print('[DEBUG] ' + str(msg))
+        return msg
+
+
+args =  argparse.ArgumentParser(description='gtk+ blinkstick controller')
+args.add_argument('-d', '--debug', action='store_true', default=False, help='Enable debug output')
+results = args.parse_args()
+
+main = pyblinkgtk(args.parse_args())
+main.connect('destroy', main.exit)
+main.show_all()
+
+#default view
+main.durationPane.hide()
+main.stepsPane.hide()
+main.newColorPane.hide()
+
+Gtk.main()
