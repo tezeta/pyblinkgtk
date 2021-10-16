@@ -20,7 +20,6 @@ class pyblinkgtk(Gtk.Window):
         self.set_border_width(6)
 
         self.debugEnable = args.debug
-        self.getConfig()
 
 #        self.icon_stream = Gio.MemoryInputStream.new_from_bytes(GLib.Bytes(self.icon_data))
 #        self.icon = GdkPixbuf.Pixbuf.new_from_stream(self.icon_stream)
@@ -76,73 +75,22 @@ class pyblinkgtk(Gtk.Window):
         self.offButton.connect('pressed',self.offButtonPressed)
         self.blinkstickPane.pack_start(self.offButton,False,False,0)
 
-
         #create mode pane under list       
         self.funcModePane = Gtk.Box(spacing=6, hexpand=True, vexpand=False)
         self.leftView.pack_end(self.funcModePane,True,True,0)
 
-
         #create left functions pane
         self.funcLeftPane = Gtk.Box(spacing=6, border_width=8, orientation='vertical')
         self.funcModePane.pack_start(self.funcLeftPane,True,True,0)
-        
-        self.progControl = Gtk.Box(spacing=6, border_width=8, hexpand=True)
-        self.funcLeftPane.pack_start(self.progControl,True,True,0)
-
-        #hide button
-        self.hideButton = Gtk.Button(label='Hide')
-        self.progControl.pack_start(self.hideButton,True,True,0)
-        self.hideButton.connect('pressed',self.showhide)
-
-        #exit button
-        self.exitButton = Gtk.Button(label='Exit')
-        self.progControl.pack_start(self.exitButton,True,True,0)
-        self.exitButton.connect('pressed',self.exit)
-
-   
-        #boblight ctl
-        self.boblightPane = Gtk.Box(spacing=6, border_width=8, vexpand=True, hexpand=True, orientation='vertical')
-        self.boblightFrame = Gtk.Frame()
-        self.boblightFrame.add(self.boblightPane)
-
-        self.boblightInfoLabel = Gtk.Label(label='boblight control')
-        self.funcLeftPane.pack_start(self.boblightInfoLabel,False,False,0)
-
-        self.funcLeftPane.pack_start(self.boblightFrame,False,False,0)
-
-        self.boblightdConfigLabel = Gtk.Label(label='boblightd config:')
-        self.boblightPane.pack_start(self.boblightdConfigLabel,False,False,0) 
-
-        self.boblightdConfig = Gtk.Entry()
-        self.boblightdConfig.set_text(self.cfg.get('boblight','boblightd-conf'))
-        self.boblightdConfig.connect('changed',self.setConfig,'boblight','boblightd-conf')
-        self.boblightPane.pack_start(self.boblightdConfig,False,False,0) 
-
-        self.boblightX11ArgsLabel = Gtk.Label(label='boblight-X11 args:')
-        self.boblightPane.pack_start(self.boblightX11ArgsLabel,False,False,0) 
-
-        self.boblightX11Args = Gtk.Entry()
-        self.boblightX11Args.set_text(self.cfg.get('boblight','boblight-x11-args'))
-        self.boblightX11Args.connect('changed',self.setConfig,'boblight','boblight-x11-args')
-        self.boblightPane.pack_start(self.boblightX11Args,False,False,0) 
-
-        self.boblightPauseButton = Gtk.Button()
-        self.boblightToggleButton = Gtk.ToggleButton()
-
-        self.boblightPauseButton.connect('pressed',self.boblightTogglePause,self.boblightToggleButton)
-        self.boblightPane.pack_end(self.boblightPauseButton,False,False,0)       
-
-        self.boblightToggleButton.connect('toggled',self.boblightToggleExec,self.boblightPauseButton)
-        self.boblightPane.pack_end(self.boblightToggleButton,False,False,0)
-
-        
+                  
         #create mode options pane
         self.funcRightPane = Gtk.Box(spacing=6, border_width=8,hexpand=True,vexpand=True, orientation='vertical')
         self.funcModePane.pack_end(self.funcRightPane,False,False,0)
 
+
         self.funcModeSelectionPane = Gtk.ButtonBox(orientation='vertical')
         self.funcModeSelectionPane.set_layout(Gtk.ButtonBoxStyle(3))
-        self.funcRightPane.pack_start(self.funcModeSelectionPane,True,True,0)
+        self.funcLeftPane.pack_start(self.funcModeSelectionPane,True,True,0)
        
         self.blink = Gtk.RadioButton(label='Blink')
         self.pulse = Gtk.RadioButton(group=self.blink,label='Pulse')
@@ -176,7 +124,6 @@ class pyblinkgtk(Gtk.Window):
 
         self.delayPane.pack_start(self.delayLabel,False,False,0)
         self.delayPane.pack_end(self.delay,False,False,0)
-
 
         #repeats
         self.repeatsPane = Gtk.Box()
@@ -217,12 +164,12 @@ class pyblinkgtk(Gtk.Window):
         #exec button      
         self.execButton = Gtk.Button(label='Execute')
         self.execButton.connect('pressed',self.executeButtonPressed)
-        self.funcRightPane.pack_end(self.execButton,False,False,0)
+        self.funcLeftPane.pack_end(self.execButton,False,False,0)
 
         #rand color
         self.randColorButton = Gtk.Button(label='Random')
         self.randColorButton.connect('pressed',self.randColorButtonPressed)
-        self.funcRightPane.pack_end(self.randColorButton,False,False,0)
+        self.funcLeftPane.pack_end(self.randColorButton,False,False,0)
 
 
 
@@ -270,7 +217,6 @@ class pyblinkgtk(Gtk.Window):
         self.infoPane1.pack_start(self.infoSaveButton1,False,False,0)
         self.infoPane1.pack_end(self.info1,False,False,0)
 
-
         #create infopane2
         self.infoPane2 = Gtk.Box(spacing=6, hexpand=True, vexpand=True)
         self.infoSaveButton2 = Gtk.Button(label='Infoblock 2')
@@ -283,11 +229,27 @@ class pyblinkgtk(Gtk.Window):
         self.infoPane2.pack_start(self.infoSaveButton2,False,False,0)
         self.infoPane2.pack_end(self.info2,False,False,0)
 
+        #program control
+        self.progControl = Gtk.Box(spacing=6, border_width=8, hexpand=False)
+        self.padding = Gtk.Box(hexpand=True)
+        self.progControl.pack_start(self.padding,False,False,0)
+        
+        #hide button
+        self.hideButton = Gtk.Button(label='Hide')
+        self.progControl.pack_start(self.hideButton,False,False,0)
+        self.hideButton.connect('pressed',self.showhide)
+
+        #exit button
+        self.exitButton = Gtk.Button(label='Exit')
+        self.progControl.pack_start(self.exitButton,False,False,0)
+        self.exitButton.connect('pressed',self.exit)
+
 
         #add panes to tr box
         self.topRightView.pack_start(self.funcModePane,False,False,0)
-        self.topRightView.pack_end(self.infoPane2,False,False,0)
-        self.topRightView.pack_end(self.infoPane1,False,False,0)
+        self.topRightView.pack_start(self.infoPane2,False,False,0)
+        self.topRightView.pack_start(self.infoPane1,False,False,0)
+        self.topRightView.pack_start(self.progControl,False,False,0)
 
         #color wheel
         self.colorSelector = Gtk.ColorSelection()
@@ -305,11 +267,6 @@ class pyblinkgtk(Gtk.Window):
         self.pulse.connect('toggled',self.pulseSelected)
         self.morph.connect('toggled',self.morphSelected)
         
-        #init boblight status
-        self.boblightTogglePause(self.boblightPauseButton, self.boblightToggleButton)
-        self.boblightToggleExec(self.boblightToggleButton,self.boblightPauseButton)
- 
-
     #selection/control functions
     def controlState(self,state):
         self.randColorButton.set_sensitive(state)
@@ -463,152 +420,12 @@ class pyblinkgtk(Gtk.Window):
         except:
             self.errorOut("No blinksticks found!")
 
-
-    #boblight controls
-    def checkRunning(self,proc):
-        try:
-            p = psutil.Process([p.info for p in psutil.process_iter(attrs=['pid','name','status']) if (proc in p.info['name']) and (p.info['status'] != 'zombie')][0]['pid'])
-        except IndexError:
-            return -1
-        return self.debug(p)
-
-    def colorUpdater(self, obj):
-         while self.update:
-             time.sleep(0.5)
-             self.updateColor(obj)
-
-    def boblightControlState(self,firstrun,state,toggle,pause):
-        if firstrun:
-                if state:
-                        toggle.set_label('running')
-                        toggle.set_active(True)
-                        self.controlState(False)
-                        pause.set_sensitive(True)
-                        pause.set_label('running')
-                else:
-                        toggle.set_label('not running')
-                        toggle.set_active(False)
-                        self.controlState(True)
-                        pause.set_sensitive(False)
-                        pause.set_label('not running')
-        else:
-                if state:
-                        toggle.set_label('started')
-                        pause.set_sensitive(True)
-                        self.controlState(False)
-                        pause.set_label('running')
-                else:
-                        toggle.set_label('stopped')
-                        pause.set_sensitive(False)
-                        self.controlState(True)
-                        pause.set_label('not running')
-
-    def boblightToggleExec(self,obj,subobj):
-        if obj.get_label():
-            p = self.checkRunning('boblightd')
-            x = self.checkRunning('boblight-X11')
-             
-            if obj.get_active() and os.path.exists(self.cfg.get('boblight','boblightd-conf')):
-                if p == -1:
-                    self.boblightd = self.debug(psutil.Popen('boblightd -c ' + self.cfg.get('boblight','boblightd-conf'), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-                    self.boblightControlState(False, True, obj, subobj)
-
-                    self.update = True
-                    self.updater = self.debug(threading.Thread(name='colorUpdater', target=self.colorUpdater, args=(self.colorSelector,)))
-                    self.updater.daemon = True
-                    self.updater.start()
-
-                if x == -1:
-                    self.boblightX11 = self.debug(psutil.Popen('DISPLAY=:0 boblight-X11 ' + self.cfg.get('boblight','boblight-X11-args'), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE))
-            elif os.path.exists(self.cfg.get('boblight','boblightd-conf')):
-                self.boblightd.kill()
-                self.boblightX11.kill()
-                self.boblightControlState(False, False, obj, subobj)
-                self.update = False  
-            else:
-                obj.set_active(False)
-                subobj.set_sensitive(False)
-                obj.set_label("boblightd conf missing")
-                return -1
-
-        else:
-                p = self.checkRunning('boblightd')
-                x = self.checkRunning('boblight-X11')
-                if p == -1:
-                        if not os.path.exists(self.cfg.get('boblight','boblightd-conf')):
-                            obj.set_active(False)
-                            subobj.set_sensitive(False)
-                            obj.set_label("boblightd conf missing")
-                            return -1
- 
-                        self.boblightControlState(True, False, obj, subobj)
-                elif (p.status() == psutil.STATUS_RUNNING) or (p.status() == psutil.STATUS_SLEEPING):
-                        self.boblightd = p
-                        self.boblightControlState(True, True, obj, subobj)
-
-                        self.update = True
-                        self.updater = self.debug(threading.Thread(name='colorUpdater', target=self.colorUpdater, args=(self.colorSelector,)))
-                        self.updater.daemon = True
-                        self.updater.start()
-
-                if x != -1:
-                        if (x.status() == psutil.STATUS_RUNNING) or (x.status() == psutil.STATUS_SLEEPING):
-                                self.boblightX11 = x
-
-        return 0
-        
-    def boblightTogglePause(self,obj,subobj):
-      if subobj.get_active == False:
-        return -1
-      p = self.checkRunning('boblightd')
-      if p == -1:
-        obj.set_label('not running')
-        return -1
-      if p.status() == psutil.STATUS_STOPPED:
-        if obj.get_label():
-            p.resume()       
-            obj.set_label('started')
-        else:
-            obj.set_label('stopped')
-      elif (p.status() == psutil.STATUS_RUNNING) or (p.status() == psutil.STATUS_SLEEPING):
-        if obj.get_label():
-            p.suspend()
-            obj.set_label('stopped')
-        else:
-            obj.set_label('running')
-
-
     #helper functions
     def rgbToHex(self, r, g, b):
         r = int(round(r * 255.0))
         g = int(round(g * 255.0))
         b = int(round(b * 255.0))
         return self.debug('#{:02x}{:02x}{:02x}'.format(r, g, b))
-
-    def getConfig(self):
-        self.home = expanduser('~')
-        self.cfg = configparser.ConfigParser()
-
-        if not os.path.exists(self.home + '/.pyblinkgtk.conf'):
-                self.cfg.add_section('boblight')
-                self.cfg.set('boblight','boblightd-conf', self.home + '/.boblight/boblight.conf')
-                self.cfg.set('boblight','boblight-X11-args','-o saturation=3 -o value=8.0 -o threshold=70 -o speed=70 -o valuemax=1')
-                self.cfg.write(self.debug(open(self.home + '/.pyblinkgtk.conf','w')))
-        else:
-                self.debug(self.cfg.read(self.home + '/.pyblinkgtk.conf'))
-                try:
-                        self.debug(self.cfg.items('boblight'))
-                        self.cfg.get('boblight','boblightd-conf')
-                        self.cfg.get('boblight','boblight-x11-args')
-                except configparser.NoOptionError:
-                        self.cfg.add_section('boblight')
-                        self.cfg.set('boblight','boblightd-conf', self.home + '/.boblight/boblight.conf')
-                        self.cfg.set('boblight','boblight-X11-args','-o saturation=3 -o value=8.0 -o threshold=70 -o speed=70 -o valuemax=1')
-                        self.debug(self.cfg.items('boblight'))
-                self.cfg.write(self.debug(open(self.home + '/.pyblinkgtk.conf','w')))
-
-    def setConfig(self,obj,category,item):
-        self.cfg.set(category,item,self.debug(obj.get_text()))
 
     def debug(self,msg):
         if self.debugEnable:
