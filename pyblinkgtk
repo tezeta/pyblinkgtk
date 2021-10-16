@@ -5,7 +5,6 @@
 import threading, subprocess, os, time, psutil, configparser, argparse
 #import base64
 from os.path import expanduser
-from pathlib import Path
 
 import gi
 gi.require_version('Gtk', '3.0')
