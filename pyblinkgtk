@@ -5,6 +5,7 @@
 import threading, subprocess, os, time, psutil, configparser, argparse
 #import base64
 from os.path import expanduser
+from pathlib import Path
 
 import gi
 gi.require_version('Gtk', '3.0')
@@ -21,17 +22,12 @@ class pyblinkgtk(Gtk.Window):
 
         self.debugEnable = args.debug
 
-#        self.icon_stream = Gio.MemoryInputStream.new_from_bytes(GLib.Bytes(self.icon_data))
-#        self.icon = GdkPixbuf.Pixbuf.new_from_stream(self.icon_stream)
-#        self.tray.set_from_pixbuf(self.icon)
-        icon = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'blinkstick.ico')
-   
-        self.set_icon_from_file(icon)
+        self.set_icon_name("weather-clear")
 
         #tray icon
         self.tray = Gtk.StatusIcon()
 
-        self.tray.set_from_file(icon)
+        self.tray.set_from_gicon(Gio.ThemedIcon(name="weather-clear"))
         self.tray.set_has_tooltip(True)
         self.tray.set_tooltip_text('pyblinkgtk')
         self.tray.connect('activate', self.showhide)
