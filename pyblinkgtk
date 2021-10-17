@@ -36,13 +36,7 @@ class pyblinkgtk(Gtk.Window):
         self.viewport = Gtk.Box(spacing=20, hexpand=True, vexpand=True)
         self.viewport.set_border_width(6)
 
-        #self.viewportFrame = Gtk.Frame()
-        #self.viewportFrame.add(self.viewport)
-
-        #self.add(self.viewportFrame)
         self.add(self.viewport)
-
-
 
         #create left view
         self.leftView = Gtk.Box(spacing=6, border_width=0, hexpand=False, vexpand=True, orientation='vertical')
@@ -52,7 +46,7 @@ class pyblinkgtk(Gtk.Window):
 
 
         #create blinkstick list+controls
-        self.blinkstickPane = Gtk.Box(spacing=6, border_width=8, hexpand=True, vexpand=False)
+        self.blinkstickPane = Gtk.Box(spacing=6, border_width=8, hexpand=True, vexpand=False, orientation='vertical')
         self.leftView.pack_start(self.blinkstickPane,False,False,0)
 
         self.blinkstickList = Gtk.ComboBox.new_with_model_and_entry(self.initSticks())
@@ -60,32 +54,27 @@ class pyblinkgtk(Gtk.Window):
         self.blinkstickList.set_active(0)
         self.blinkstickPane.pack_start(self.blinkstickList,True,True, 0)
 
+        self.blinkstickBtns = Gtk.Box(spacing=6, border_width=8, hexpand=True, vexpand=False)
+        self.blinkstickPane.pack_start(self.blinkstickBtns,False,False,0)
+
+        self.blinkstickBtns.pack_start(Gtk.Box(hexpand=True),True,True,0)
         #refresh button
         self.refreshButton = Gtk.Button(label='Refresh')
-        self.blinkstickPane.pack_start(self.refreshButton,False,False,0)
+        self.blinkstickBtns.pack_start(self.refreshButton,False,False,0)
         self.refreshButton.connect('pressed',self.refreshButtonPressed)
 
         #black(off) button
         self.offButton = Gtk.Button(label='Off')
         self.offButton.connect('pressed',self.offButtonPressed)
-        self.blinkstickPane.pack_start(self.offButton,False,False,0)
+        self.blinkstickBtns.pack_start(self.offButton,False,False,0)
 
         #create mode pane under list       
-        self.funcModePane = Gtk.Box(spacing=6, hexpand=True, vexpand=False)
+        self.funcModePane = Gtk.Box(spacing=6, border_width=8, hexpand=True, vexpand=True, orientation='vertical')
         self.leftView.pack_end(self.funcModePane,True,True,0)
-
-        #create left functions pane
-        self.funcLeftPane = Gtk.Box(spacing=6, border_width=8, orientation='vertical')
-        self.funcModePane.pack_start(self.funcLeftPane,True,True,0)
-                  
-        #create mode options pane
-        self.funcRightPane = Gtk.Box(spacing=6, border_width=8,hexpand=True,vexpand=True, orientation='vertical')
-        self.funcModePane.pack_end(self.funcRightPane,False,False,0)
-
 
         self.funcModeSelectionPane = Gtk.ButtonBox(orientation='vertical')
         self.funcModeSelectionPane.set_layout(Gtk.ButtonBoxStyle(3))
-        self.funcLeftPane.pack_start(self.funcModeSelectionPane,True,True,0)
+        self.funcModePane.pack_start(self.funcModeSelectionPane,True,True,0)
        
         self.blink = Gtk.RadioButton(label='Blink')
         self.pulse = Gtk.RadioButton(group=self.blink,label='Pulse')
@@ -97,7 +86,7 @@ class pyblinkgtk(Gtk.Window):
 
         #duration
         self.durationPane = Gtk.Box()
-        self.funcRightPane.pack_start(self.durationPane,False,False,0)
+        self.funcModePane.pack_start(self.durationPane,False,False,0)
 
         self.durationLabel = Gtk.Label(label='Length: ')
         self.duration = Gtk.SpinButton()
@@ -110,7 +99,7 @@ class pyblinkgtk(Gtk.Window):
 
         #delay
         self.delayPane = Gtk.Box()
-        self.funcRightPane.pack_start(self.delayPane,False,False,0)
+        self.funcModePane.pack_start(self.delayPane,False,False,0)
 
         self.delayLabel = Gtk.Label(label='Delay: ')
         self.delay = Gtk.SpinButton()
@@ -122,7 +111,7 @@ class pyblinkgtk(Gtk.Window):
 
         #repeats
         self.repeatsPane = Gtk.Box()
-        self.funcRightPane.pack_start(self.repeatsPane,False,False,0)
+        self.funcModePane.pack_start(self.repeatsPane,False,False,0)
 
         self.repeatsLabel = Gtk.Label(label='Repeats: ')
         self.repeats = Gtk.SpinButton()
@@ -135,7 +124,7 @@ class pyblinkgtk(Gtk.Window):
 
         #steps
         self.stepsPane = Gtk.Box()
-        self.funcRightPane.pack_start(self.stepsPane,False,False,0)
+        self.funcModePane.pack_start(self.stepsPane,False,False,0)
 
         self.stepsLabel = Gtk.Label(label='Steps: ')
         self.steps = Gtk.SpinButton()
@@ -148,7 +137,7 @@ class pyblinkgtk(Gtk.Window):
 
         #newColor
         self.newColorPane = Gtk.Box()
-        self.funcRightPane.pack_start(self.newColorPane,False,False,0)
+        self.funcModePane.pack_start(self.newColorPane,False,False,0)
 
         self.newColorLabel = Gtk.Label(label='New color: ')
         self.newColor = Gtk.ColorButton(color = Gdk.Color.parse('#ffffff').color)
@@ -159,12 +148,12 @@ class pyblinkgtk(Gtk.Window):
         #exec button      
         self.execButton = Gtk.Button(label='Execute')
         self.execButton.connect('pressed',self.executeButtonPressed)
-        self.funcLeftPane.pack_end(self.execButton,False,False,0)
+        self.funcModePane.pack_end(self.execButton,False,False,0)
 
         #rand color
         self.randColorButton = Gtk.Button(label='Random')
         self.randColorButton.connect('pressed',self.randColorButtonPressed)
-        self.funcLeftPane.pack_end(self.randColorButton,False,False,0)
+        self.funcModePane.pack_end(self.randColorButton,False,False,0)
 
 
 
@@ -226,8 +215,7 @@ class pyblinkgtk(Gtk.Window):
 
         #program control
         self.progControl = Gtk.Box(spacing=6, border_width=8, hexpand=False)
-        self.padding = Gtk.Box(hexpand=True)
-        self.progControl.pack_start(self.padding,False,False,0)
+        self.progControl.pack_start(Gtk.Box(hexpand=True),False,False,0)
         
         #hide button
         self.hideButton = Gtk.Button(label='Hide')
