@@ -30,7 +30,7 @@ class pyblinkgtk(Gtk.Window):
         self.tray.set_has_tooltip(True)
         self.tray.set_tooltip_text('pyblinkgtk')
         self.tray.connect('activate', self.showhide)
-
+        self.tray.connect('popup-menu', self.traymenu)
 
         #create main box
         self.viewport = Gtk.Box(spacing=20, hexpand=True, vexpand=True)
@@ -317,6 +317,28 @@ class pyblinkgtk(Gtk.Window):
         else:
              self.show()
 
+    def traymenu(self,icon,button,time):
+        showhide_label = "Toggle Visibility"
+        exit_label = "Exit pyblinkgtk"
+
+        menu = Gtk.Menu()
+        showhide_item = Gtk.MenuItem()
+        exit_item = Gtk.MenuItem()
+
+        showhide_item.set_label(showhide_label)
+        exit_item.set_label(exit_label)
+
+        menu.append(showhide_item)
+        menu.append(exit_item)
+        
+        showhide_item.connect_object("activate", self.showhide, showhide_label)
+        exit_item.connect_object("activate", self.exit, exit_label)
+        
+        showhide_item.show()
+        exit_item.show()
+
+        menu.popup(None, None, None, self.tray, button, time)
+
     def errorOut(self,message):
         dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.ERROR, Gtk.ButtonsType.OK, 'An error occured!')
         dialog.format_secondary_text('No blinksticks were found, exiting....')
@@ -418,11 +440,15 @@ class pyblinkgtk(Gtk.Window):
 
 args =  argparse.ArgumentParser(description='gtk+ blinkstick controller')
 args.add_argument('-d', '--debug', action='store_true', default=False, help='Enable debug output')
+args.add_argument('-m', '--minimized', action='store_true', default=False, help='Start minimized')
 results = args.parse_args()
 
-main = pyblinkgtk(args.parse_args())
+main = pyblinkgtk(results)
 main.connect('destroy', main.exit)
 main.show_all()
+
+if results.minimized:
+    main.hide()
 
 #default view
 main.durationPane.hide()
